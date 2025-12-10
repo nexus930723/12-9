@@ -61,22 +61,26 @@ enum BodyPart: String, CaseIterable, Identifiable, Codable {
                 Exercise(name: "反向飛鳥", bodyPart: .shoulders, imageName: "反向飛鳥")
             ]
         case .arms:
+            // 手部：依照要求與同名圖片資產
             return [
-                Exercise(name: "二頭彎舉", bodyPart: .arms),
-                Exercise(name: "三頭下壓", bodyPart: .arms),
-                Exercise(name: "槌式彎舉", bodyPart: .arms)
+                Exercise(name: "二頭彎舉", bodyPart: .arms, imageName: "二頭彎舉"),
+                Exercise(name: "反握下壓", bodyPart: .arms, imageName: "反握下壓"),
+                Exercise(name: "仰臥三頭肌伸展", bodyPart: .arms, imageName: "仰臥三頭肌伸展")
             ]
         case .abs:
+            // 腹肌：示例（若你已在前一步改過，這裡維持一致）
             return [
-                Exercise(name: "仰臥捲腹", bodyPart: .abs),
-                Exercise(name: "仰臥抬腿", bodyPart: .abs),
-                Exercise(name: "平板支撐", bodyPart: .abs)
+                Exercise(name: "棒式", bodyPart: .abs, imageName: "棒式"),
+                Exercise(name: "捲腹", bodyPart: .abs, imageName: "捲腹"),
+                Exercise(name: "俄羅斯轉體", bodyPart: .abs, imageName: "俄羅斯轉體"),
+                Exercise(name: "懸吊抬腿", bodyPart: .abs, imageName: "懸吊抬腿")
             ]
         case .cardio:
+            // 有氧：改為 跑步機、飛輪、划船機，並使用同名圖片資產
             return [
-                Exercise(name: "跑步機", bodyPart: .cardio),
-                Exercise(name: "跳繩", bodyPart: .cardio),
-                Exercise(name: "單車", bodyPart: .cardio)
+                Exercise(name: "跑步機", bodyPart: .cardio, imageName: "跑步機"),
+                Exercise(name: "飛輪", bodyPart: .cardio, imageName: "飛輪"),
+                Exercise(name: "划船機", bodyPart: .cardio, imageName: "划船機")
             ]
         }
     }
