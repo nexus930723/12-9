@@ -21,9 +21,6 @@ enum BodyPart: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    // MARK: - 修正範例動作的生成方式以確保 Exercise 的 ID 穩定
-
-    /// 預先定義所有部位的範例動作，確保每次存取時 Exercise 的 ID 都是穩定的。
     private static let predefinedSampleExercises: [BodyPart: [Exercise]] = {
         var exercises: [BodyPart: [Exercise]] = [:]
 
@@ -74,12 +71,10 @@ enum BodyPart: String, CaseIterable, Identifiable, Codable {
         return exercises
     }()
 
-    /// 各部位的範例動作（中文），現在會從預先定義的靜態字典中獲取
     var sampleExercises: [Exercise] {
         return Self.predefinedSampleExercises[self] ?? []
     }
 
-    /// 對應資產圖片名稱（與 rawValue 相同）
     var assetName: String {
         switch self {
         case .chest: return "胸"
@@ -93,9 +88,8 @@ enum BodyPart: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// 動作定義（加入可選的圖片名稱）
 struct Exercise: Identifiable, Hashable, Codable {
-    let id: UUID // Exercise 的 ID 現在是穩定的，因為它們只會被創建一次
+    let id: UUID
     let name: String
     let bodyPart: BodyPart
     var imageName: String?
@@ -108,7 +102,6 @@ struct Exercise: Identifiable, Hashable, Codable {
     }
 }
 
-/// 購物車中的一個訓練項目
 struct CartItem: Identifiable, Hashable, Codable {
     let id: UUID
     var exercise: Exercise
@@ -127,14 +120,11 @@ struct CartItem: Identifiable, Hashable, Codable {
 
 // MARK: - ViewModel (EnvironmentObject)
 
-/// 管理整個 App 的訓練購物車
 final class WorkoutManager: ObservableObject {
     @Published var cart: [CartItem] = []
 
-    /// 新增動作到購物車（含動畫）
     func addToCart(exercise: Exercise) {
         withAnimation(.spring()) {
-            // 在加入前檢查是否已存在，雖然按鈕會禁用，但這提供一層保障
             if !cart.contains(where: { $0.exercise.id == exercise.id }) {
                 let newItem = CartItem(exercise: exercise)
                 cart.append(newItem)
@@ -142,32 +132,14 @@ final class WorkoutManager: ObservableObject {
         }
     }
 
-    /// 清空購物車
     func clearCart() {
         withAnimation(.easeInOut) {
             cart.removeAll()
         }
     }
 
-    /// 切換完成狀態
-    func toggleCompleted(for item: CartItem) {
-        if let idx = cart.firstIndex(where: { $0.id == item.id }) {
-            cart[idx].isCompleted.toggle()
-        }
-    }
-
-    /// 更新組數
-    func updateSets(for item: CartItem, sets: Int) {
-        if let idx = cart.firstIndex(where: { $0.id == item.id }) {
-            cart[idx].sets = max(0, sets)
-        }
-    }
-
-    /// 更新次數
-    func updateReps(for item: CartItem, reps: Int) {
-        if let idx = cart.firstIndex(where: { $0.id == item.id }) {
-            cart[idx].reps = max(0, reps)
-        }
+    func moveCartItem(fromOffsets source: IndexSet, toOffset destination: Int) {
+        cart.move(fromOffsets: source, toOffset: destination)
     }
 }
 
@@ -278,14 +250,13 @@ struct ExerciseBrowserView: View {
 
 struct ExerciseListView: View {
     @EnvironmentObject var manager: WorkoutManager
-    @Environment(\.dismiss) var dismissSheet // 使用 @Environment(\.dismiss) 關閉 sheet
+    @Environment(\.dismiss) var dismissSheet
     let bodyPart: BodyPart
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(bodyPart.sampleExercises) { exercise in
-                    // 判斷該動作是否已在購物車中
                     let isInCart = manager.cart.contains { $0.exercise.id == exercise.id }
 
                     HStack(spacing: 12) {
@@ -308,7 +279,6 @@ struct ExerciseListView: View {
                         Button {
                             manager.addToCart(exercise: exercise)
                         } label: {
-                            // 根據是否在購物車中，改變按鈕的文字和圖示
                             if isInCart {
                                 Label("已加入", systemImage: "checkmark.circle.fill")
                                     .labelStyle(.titleAndIcon)
@@ -318,7 +288,6 @@ struct ExerciseListView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        // 當動作已在購物車中時，禁用按鈕
                         .disabled(isInCart)
                     }
                     .padding(.vertical, 4)
@@ -328,7 +297,7 @@ struct ExerciseListView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("關閉") {
-                        dismissSheet() // 使用 dismissSheet() 關閉 sheet
+                        dismissSheet()
                     }
                 }
             }
@@ -390,52 +359,52 @@ struct AddExerciseSheet: View {
 
 struct CartView: View {
     @EnvironmentObject var manager: WorkoutManager
-    @State private var showClearAlert: Bool = false
     @State private var showFinishAlert: Bool = false
 
     var body: some View {
-        VStack {
+        List {
             if manager.cart.isEmpty {
-                ContentUnavailableView("清單是空的", systemImage: "cart", description: Text("到瀏覽頁面加入一些訓練吧。"))
+                Section {
+                    ContentUnavailableView("清單是空的", systemImage: "cart", description: Text("到瀏覽頁面加入一些訓練吧。"))
+                }
             } else {
-                List {
-                    ForEach(manager.cart) { item in
-                        CartItemRow(item: item)
-                    }
-                    .onDelete(perform: delete)
+                ForEach($manager.cart, id: \.id) { $item in
+                    CartItemRow(item: $item)
+                        .transaction { $0.animation = nil }
                 }
+                .onDelete(perform: delete)
+                .onMove(perform: manager.moveCartItem)
             }
-
+        }
+        .animation(nil, value: manager.cart)
+        .navigationTitle("我的清單")
+        // 移除上方工具列的 EditButton，改放到底部左側
+        .toolbar {
+            // 保留右側空間（可依需求添加其他按鈕）
+        }
+        // 底部操作列：左側是 EditButton（原清空位置），右側是「開始訓練」
+        .safeAreaInset(edge: .bottom) {
             HStack {
-                Button(role: .destructive) {
-                    showClearAlert = true
-                } label: {
-                    Label("清空清單", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
+                EditButton()
+                    .buttonStyle(.bordered) // 與原清空按鈕風格一致
 
                 Spacer()
 
                 Button {
                     showFinishAlert = true
                 } label: {
-                    Label("完成訓練", systemImage: "checkmark.seal.fill")
+                    Label("開始訓練", systemImage: "play.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
             }
             .padding(.horizontal)
-            .padding(.bottom, 12)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
         }
-        .alert("要清除所有項目嗎？", isPresented: $showClearAlert) {
-            Button("取消", role: .cancel) {}
-            Button("清除", role: .destructive) { manager.clearCart() }
-        } message: {
-            Text("這會移除清單中的所有動作。")
-        }
-        .alert("太棒了！", isPresented: $showFinishAlert) {
+        .alert("出發！", isPresented: $showFinishAlert) {
             Button("OK") {}
         } message: {
-            Text("訓練完成！🎉\n\n// TODO: 加入彩帶動畫")
+            Text("開始訓練，加油！💪")
         }
     }
 
@@ -445,16 +414,12 @@ struct CartView: View {
 }
 
 struct CartItemRow: View {
-    @EnvironmentObject var manager: WorkoutManager
-    let item: CartItem
+    @Binding var item: CartItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Toggle(isOn: Binding(
-                    get: { item.isCompleted },
-                    set: { _ in manager.toggleCompleted(for: item) }
-                )) {
+                Toggle(isOn: $item.isCompleted) {
                     VStack(alignment: .leading) {
                         Text(item.exercise.name)
                             .font(.headline)
@@ -467,19 +432,15 @@ struct CartItemRow: View {
             }
 
             HStack(spacing: 16) {
-                Stepper("組數：\(item.sets)", value: Binding(
-                    get: { item.sets },
-                    set: { manager.updateSets(for: item, sets: $0) }
-                ), in: 0...20)
-
-                Stepper("次數：\(item.reps)", value: Binding(
-                    get: { item.reps },
-                    set: { manager.updateReps(for: item, reps: $0) }
-                ), in: 0...100)
+                Stepper("組數：\(item.sets)", value: $item.sets, in: 0...20)
+                Stepper("次數：\(item.reps)", value: $item.reps, in: 0...100)
             }
             .font(.subheadline)
         }
         .padding(.vertical, 4)
+        .animation(nil, value: item.isCompleted)
+        .animation(nil, value: item.sets)
+        .animation(nil, value: item.reps)
     }
 }
 
@@ -492,28 +453,24 @@ enum Gender: String, CaseIterable, Identifiable {
 }
 
 struct NutritionView: View {
-    // 持久化資料
     @AppStorage("fitcart_height_cm") private var heightCM: String = ""
     @AppStorage("fitcart_weight_kg") private var weightKG: String = ""
     @AppStorage("fitcart_gender") private var genderRaw: String = Gender.male.rawValue
 
-    // 非持久化但由使用者控制
     @State private var birthday: Date = Calendar.current.date(byAdding: .year, value: -20, to: .now) ?? .now
-    @State private var activity: Double = 1.2 // 1.2 - 2.0
+    @State private var activity: Double = 1.2
     @State private var showInvalidAlert: Bool = false
 
     private var gender: Gender {
         Gender(rawValue: genderRaw) ?? .male
     }
 
-    // 由生日計算年齡
     private var age: Int {
         let now = Date()
         let comps = Calendar.current.dateComponents([.year], from: birthday, to: now)
         return max(0, comps.year ?? 0)
     }
 
-    // 基礎代謝率（Mifflin-St Jeor）
     private var bmr: Double? {
         guard let h = Double(heightCM), let w = Double(weightKG), age > 0 else { return nil }
         switch gender {
@@ -524,7 +481,6 @@ struct NutritionView: View {
         }
     }
 
-    // 總消耗熱量 = BMR * 活動係數
     private var tdee: Double? {
         guard let bmr else { return nil }
         return bmr * activity
