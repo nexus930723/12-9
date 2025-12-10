@@ -21,68 +21,62 @@ enum BodyPart: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    /// 各部位的範例動作（中文）
+    // MARK: - 修正範例動作的生成方式以確保 Exercise 的 ID 穩定
+
+    /// 預先定義所有部位的範例動作，確保每次存取時 Exercise 的 ID 都是穩定的。
+    private static let predefinedSampleExercises: [BodyPart: [Exercise]] = {
+        var exercises: [BodyPart: [Exercise]] = [:]
+
+        exercises[.chest] = [
+            Exercise(name: "平板臥推", bodyPart: .chest, imageName: "平板臥推"),
+            Exercise(name: "上斜臥推", bodyPart: .chest, imageName: "上斜臥推"),
+            Exercise(name: "下斜臥推", bodyPart: .chest, imageName: "下斜臥推"),
+            Exercise(name: "蝴蝶機夾胸", bodyPart: .chest, imageName: "蝴蝶機夾胸"),
+            Exercise(name: "雙槓臂屈伸", bodyPart: .chest, imageName: "雙槓臂屈伸"),
+            Exercise(name: "伏地挺身", bodyPart: .chest, imageName: "伏地挺身")
+        ]
+        exercises[.back] = [
+            Exercise(name: "高位下拉", bodyPart: .back, imageName: "高位下拉"),
+            Exercise(name: "坐姿划船", bodyPart: .back, imageName: "坐姿划船"),
+            Exercise(name: "俯身划船", bodyPart: .back, imageName: "俯身划船"),
+            Exercise(name: "引體向上", bodyPart: .back, imageName: "引體向上")
+        ]
+        exercises[.legs] = [
+            Exercise(name: "深蹲", bodyPart: .legs, imageName: "深蹲"),
+            Exercise(name: "保加利亞分腿蹲", bodyPart: .legs, imageName: "保加利亞分腿蹲"),
+            Exercise(name: "腿推舉", bodyPart: .legs, imageName: "腿推舉"),
+            Exercise(name: "腿彎舉", bodyPart: .legs, imageName: "腿彎舉"),
+            Exercise(name: "站姿提踵", bodyPart: .legs, imageName: "站姿提踵")
+        ]
+        exercises[.shoulders] = [
+            Exercise(name: "肩推", bodyPart: .shoulders, imageName: "肩推"),
+            Exercise(name: "側平舉", bodyPart: .shoulders, imageName: "側平舉"),
+            Exercise(name: "前平舉", bodyPart: .shoulders, imageName: "前平舉"),
+            Exercise(name: "繩索面拉", bodyPart: .shoulders, imageName: "繩索面拉"),
+            Exercise(name: "反向飛鳥", bodyPart: .shoulders, imageName: "反向飛鳥")
+        ]
+        exercises[.arms] = [
+            Exercise(name: "二頭彎舉", bodyPart: .arms, imageName: "二頭彎舉"),
+            Exercise(name: "反握下壓", bodyPart: .arms, imageName: "反握下壓"),
+            Exercise(name: "仰臥三頭肌伸展", bodyPart: .arms, imageName: "仰臥三頭肌伸展")
+        ]
+        exercises[.abs] = [
+            Exercise(name: "棒式", bodyPart: .abs, imageName: "棒式"),
+            Exercise(name: "捲腹", bodyPart: .abs, imageName: "捲腹"),
+            Exercise(name: "俄羅斯轉體", bodyPart: .abs, imageName: "俄羅斯轉體"),
+            Exercise(name: "懸吊抬腿", bodyPart: .abs, imageName: "懸吊抬腿")
+        ]
+        exercises[.cardio] = [
+            Exercise(name: "跑步機", bodyPart: .cardio, imageName: "跑步機"),
+            Exercise(name: "飛輪", bodyPart: .cardio, imageName: "飛輪"),
+            Exercise(name: "划船機", bodyPart: .cardio, imageName: "划船機")
+        ]
+        return exercises
+    }()
+
+    /// 各部位的範例動作（中文），現在會從預先定義的靜態字典中獲取
     var sampleExercises: [Exercise] {
-        switch self {
-        case .chest:
-            // 胸部：使用同名圖片資產（已依需求排序）
-            return [
-                Exercise(name: "平板臥推", bodyPart: .chest, imageName: "平板臥推"),
-                Exercise(name: "上斜臥推", bodyPart: .chest, imageName: "上斜臥推"),
-                Exercise(name: "下斜臥推", bodyPart: .chest, imageName: "下斜臥推"),
-                Exercise(name: "蝴蝶機夾胸", bodyPart: .chest, imageName: "蝴蝶機夾胸"),
-                Exercise(name: "雙槓臂屈伸", bodyPart: .chest, imageName: "雙槓臂屈伸"),
-                Exercise(name: "伏地挺身", bodyPart: .chest, imageName: "伏地挺身")
-            ]
-        case .back:
-            // 背部：使用同名圖片資產
-            return [
-                Exercise(name: "高位下拉", bodyPart: .back, imageName: "高位下拉"),
-                Exercise(name: "坐姿划船", bodyPart: .back, imageName: "坐姿划船"),
-                Exercise(name: "俯身划船", bodyPart: .back, imageName: "俯身划船"),
-                Exercise(name: "引體向上", bodyPart: .back, imageName: "引體向上")
-            ]
-        case .legs:
-            // 腿部：依你的順序與同名圖片資產
-            return [
-                Exercise(name: "深蹲", bodyPart: .legs, imageName: "深蹲"),
-                Exercise(name: "保加利亞分腿蹲", bodyPart: .legs, imageName: "保加利亞分腿蹲"),
-                Exercise(name: "腿推舉", bodyPart: .legs, imageName: "腿推舉"),
-                Exercise(name: "腿彎舉", bodyPart: .legs, imageName: "腿彎舉"),
-                Exercise(name: "站姿提踵", bodyPart: .legs, imageName: "站姿提踵")
-            ]
-        case .shoulders:
-            // 肩部：依你的順序與同名圖片資產
-            return [
-                Exercise(name: "肩推", bodyPart: .shoulders, imageName: "肩推"),
-                Exercise(name: "側平舉", bodyPart: .shoulders, imageName: "側平舉"),
-                Exercise(name: "前平舉", bodyPart: .shoulders, imageName: "前平舉"),
-                Exercise(name: "繩索面拉", bodyPart: .shoulders, imageName: "繩索面拉"),
-                Exercise(name: "反向飛鳥", bodyPart: .shoulders, imageName: "反向飛鳥")
-            ]
-        case .arms:
-            // 手部：依照要求與同名圖片資產
-            return [
-                Exercise(name: "二頭彎舉", bodyPart: .arms, imageName: "二頭彎舉"),
-                Exercise(name: "反握下壓", bodyPart: .arms, imageName: "反握下壓"),
-                Exercise(name: "仰臥三頭肌伸展", bodyPart: .arms, imageName: "仰臥三頭肌伸展")
-            ]
-        case .abs:
-            // 腹肌：示例（若你已在前一步改過，這裡維持一致）
-            return [
-                Exercise(name: "棒式", bodyPart: .abs, imageName: "棒式"),
-                Exercise(name: "捲腹", bodyPart: .abs, imageName: "捲腹"),
-                Exercise(name: "俄羅斯轉體", bodyPart: .abs, imageName: "俄羅斯轉體"),
-                Exercise(name: "懸吊抬腿", bodyPart: .abs, imageName: "懸吊抬腿")
-            ]
-        case .cardio:
-            // 有氧：改為 跑步機、飛輪、划船機，並使用同名圖片資產
-            return [
-                Exercise(name: "跑步機", bodyPart: .cardio, imageName: "跑步機"),
-                Exercise(name: "飛輪", bodyPart: .cardio, imageName: "飛輪"),
-                Exercise(name: "划船機", bodyPart: .cardio, imageName: "划船機")
-            ]
-        }
+        return Self.predefinedSampleExercises[self] ?? []
     }
 
     /// 對應資產圖片名稱（與 rawValue 相同）
@@ -101,7 +95,7 @@ enum BodyPart: String, CaseIterable, Identifiable, Codable {
 
 /// 動作定義（加入可選的圖片名稱）
 struct Exercise: Identifiable, Hashable, Codable {
-    let id: UUID
+    let id: UUID // Exercise 的 ID 現在是穩定的，因為它們只會被創建一次
     let name: String
     let bodyPart: BodyPart
     var imageName: String?
@@ -140,8 +134,11 @@ final class WorkoutManager: ObservableObject {
     /// 新增動作到購物車（含動畫）
     func addToCart(exercise: Exercise) {
         withAnimation(.spring()) {
-            let newItem = CartItem(exercise: exercise)
-            cart.append(newItem)
+            // 在加入前檢查是否已存在，雖然按鈕會禁用，但這提供一層保障
+            if !cart.contains(where: { $0.exercise.id == exercise.id }) {
+                let newItem = CartItem(exercise: exercise)
+                cart.append(newItem)
+            }
         }
     }
 
@@ -281,12 +278,16 @@ struct ExerciseBrowserView: View {
 
 struct ExerciseListView: View {
     @EnvironmentObject var manager: WorkoutManager
+    @Environment(\.dismiss) var dismissSheet // 使用 @Environment(\.dismiss) 關閉 sheet
     let bodyPart: BodyPart
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(bodyPart.sampleExercises) { exercise in
+                    // 判斷該動作是否已在購物車中
+                    let isInCart = manager.cart.contains { $0.exercise.id == exercise.id }
+
                     HStack(spacing: 12) {
                         if let name = exercise.imageName {
                             Image(name)
@@ -307,10 +308,18 @@ struct ExerciseListView: View {
                         Button {
                             manager.addToCart(exercise: exercise)
                         } label: {
-                            Label("加入", systemImage: "plus.circle.fill")
-                                .labelStyle(.titleAndIcon)
+                            // 根據是否在購物車中，改變按鈕的文字和圖示
+                            if isInCart {
+                                Label("已加入", systemImage: "checkmark.circle.fill")
+                                    .labelStyle(.titleAndIcon)
+                            } else {
+                                Label("加入", systemImage: "plus.circle.fill")
+                                    .labelStyle(.titleAndIcon)
+                            }
                         }
                         .buttonStyle(.borderedProminent)
+                        // 當動作已在購物車中時，禁用按鈕
+                        .disabled(isInCart)
                     }
                     .padding(.vertical, 4)
                 }
@@ -319,8 +328,7 @@ struct ExerciseListView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("關閉") {
-                        // 嘗試關閉 sheet
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        dismissSheet() // 使用 dismissSheet() 關閉 sheet
                     }
                 }
             }
