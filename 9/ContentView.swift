@@ -9,7 +9,6 @@ import Combine
 
 // MARK: - Data Models
 
-/// 身體部位分類（加入：胸、背、腿、肩、手、腹肌、有氧）
 enum BodyPart: String, CaseIterable, Identifiable, Codable {
     case chest = "胸"
     case back = "背"
@@ -108,13 +107,23 @@ struct CartItem: Identifiable, Hashable, Codable {
     var sets: Int
     var reps: Int
     var isCompleted: Bool
+    // 有氧專用：時間（分鐘），非有氧為 nil
+    var durationMinutes: Int?
 
-    init(id: UUID = UUID(), exercise: Exercise, sets: Int = 3, reps: Int = 10, isCompleted: Bool = false) {
+    init(
+        id: UUID = UUID(),
+        exercise: Exercise,
+        sets: Int = 3,
+        reps: Int = 10,
+        isCompleted: Bool = false,
+        durationMinutes: Int? = nil
+    ) {
         self.id = id
         self.exercise = exercise
         self.sets = sets
         self.reps = reps
         self.isCompleted = isCompleted
+        self.durationMinutes = durationMinutes
     }
 }
 
@@ -126,8 +135,14 @@ final class WorkoutManager: ObservableObject {
     func addToCart(exercise: Exercise) {
         withAnimation(.spring()) {
             if !cart.contains(where: { $0.exercise.id == exercise.id }) {
-                let newItem = CartItem(exercise: exercise)
-                cart.append(newItem)
+                if exercise.bodyPart == .cardio {
+                    // 有氧：預設 20 分鐘，組/次設為 0
+                    let newItem = CartItem(exercise: exercise, sets: 0, reps: 0, isCompleted: false, durationMinutes: 20)
+                    cart.append(newItem)
+                } else {
+                    let newItem = CartItem(exercise: exercise)
+                    cart.append(newItem)
+                }
             }
         }
     }
@@ -359,7 +374,7 @@ struct AddExerciseSheet: View {
 
 struct CartView: View {
     @EnvironmentObject var manager: WorkoutManager
-    @State private var showFinishAlert: Bool = false
+    @State private var presentSession: Bool = false
 
     var body: some View {
         List {
@@ -378,33 +393,31 @@ struct CartView: View {
         }
         .animation(nil, value: manager.cart)
         .navigationTitle("我的清單")
-        // 移除上方工具列的 EditButton，改放到底部左側
-        .toolbar {
-            // 保留右側空間（可依需求添加其他按鈕）
-        }
-        // 底部操作列：左側是 EditButton（原清空位置），右側是「開始訓練」
+        .toolbar { }
         .safeAreaInset(edge: .bottom) {
             HStack {
                 EditButton()
-                    .buttonStyle(.bordered) // 與原清空按鈕風格一致
+                    .buttonStyle(.bordered)
 
                 Spacer()
 
                 Button {
-                    showFinishAlert = true
+                    presentSession = true
                 } label: {
                     Label("開始訓練", systemImage: "play.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(manager.cart.isEmpty)
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
             .background(.ultraThinMaterial)
         }
-        .alert("出發！", isPresented: $showFinishAlert) {
-            Button("OK") {}
-        } message: {
-            Text("開始訓練，加油！💪")
+        .fullScreenCover(isPresented: $presentSession) {
+            WorkoutSessionView(cartSnapshot: manager.cart) {
+                presentSession = false
+            }
+            .environmentObject(manager)
         }
     }
 
@@ -431,16 +444,256 @@ struct CartItemRow: View {
                 .toggleStyle(.switch)
             }
 
-            HStack(spacing: 16) {
-                Stepper("組數：\(item.sets)", value: $item.sets, in: 0...20)
-                Stepper("次數：\(item.reps)", value: $item.reps, in: 0...100)
+            if item.exercise.bodyPart == .cardio {
+                // 有氧：只顯示時間（分鐘）
+                HStack {
+                    Stepper("時間：\(item.durationMinutes ?? 0) 分鐘",
+                            value: Binding(
+                                get: { item.durationMinutes ?? 0 },
+                                set: { item.durationMinutes = max(0, min(300, $0)) }
+                            ),
+                            in: 0...300)
+                }
+                .font(.subheadline)
+            } else {
+                // 非有氧：顯示組數/次數
+                HStack(spacing: 16) {
+                    Stepper("組數：\(item.sets)", value: $item.sets, in: 0...20)
+                    Stepper("次數：\(item.reps)", value: $item.reps, in: 0...100)
+                }
+                .font(.subheadline)
             }
-            .font(.subheadline)
         }
         .padding(.vertical, 4)
         .animation(nil, value: item.isCompleted)
         .animation(nil, value: item.sets)
         .animation(nil, value: item.reps)
+        .animation(nil, value: item.durationMinutes)
+    }
+}
+
+// MARK: - Workout Session
+
+struct WorkoutSessionView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var manager: WorkoutManager
+
+    let cartSnapshot: [CartItem]
+    var onFinish: () -> Void
+
+    @State private var currentIndex: Int = 0
+    @State private var completedSets: [UUID: Int] = [:]
+    @State private var showCompletedSheet: Bool = false
+
+    private var currentItem: CartItem? {
+        guard currentIndex >= 0 && currentIndex < cartSnapshot.count else { return nil }
+        return cartSnapshot[currentIndex]
+    }
+
+    private var allDone: Bool {
+        for item in cartSnapshot {
+            if item.exercise.bodyPart == .cardio {
+                // 有氧：以 durationMinutes 是否 > 0 作為需完成的「一項」，此處先不自動判斷完成
+                // 你可以改成以倒數計時完成，或按一次「完成一項」即視為完成
+                continue
+            } else {
+                let done = (completedSets[item.id] ?? 0) >= item.sets
+                if !done { return false }
+            }
+        }
+        // 若全部都是有氧，可視需求決定 allDone 規則；此處保持至少有一項且非有氧都完成才算
+        return !cartSnapshot.isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let item = currentItem {
+                    VStack(spacing: 24) {
+                        VStack(spacing: 8) {
+                            Text(item.exercise.name)
+                                .font(.largeTitle).bold()
+                            Text(item.exercise.bodyPart.rawValue)
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let name = item.exercise.imageName {
+                            Image(name)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: 320, maxHeight: 240)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .padding(.vertical, 8)
+                        }
+
+                        if item.exercise.bodyPart == .cardio {
+                            // 有氧：顯示時間
+                            VStack(spacing: 8) {
+                                Text("時間：\(item.durationMinutes ?? 0) 分鐘")
+                                    .font(.title2)
+                                Text("點擊下方按鈕可標記此有氧項目完成")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Button {
+                                // 將有氧視為完成一項，直接前往下一個
+                                advanceToNext()
+                            } label: {
+                                Label("完成此項目", systemImage: "checkmark.circle.fill")
+                                    .font(.title2)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            // 非有氧：以組數推進
+                            let done = completedSets[item.id] ?? 0
+                            VStack(spacing: 8) {
+                                ProgressView(value: Double(done), total: Double(max(1, item.sets)))
+                                    .tint(.green)
+                                Text("已完成 \(done) / \(item.sets) 組")
+                                    .font(.headline)
+                            }
+
+                            Button {
+                                completeOneSet(for: item)
+                            } label: {
+                                Label("完成一組", systemImage: "checkmark.circle.fill")
+                                    .font(.title2)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        Spacer()
+
+                        if let next = nextItem(after: item) {
+                            VStack(spacing: 4) {
+                                Text("下一個")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(next.exercise.name)
+                                    .font(.headline)
+                            }
+                            .padding(.bottom, 8)
+                        }
+                    }
+                    .padding()
+                } else {
+                    ContentUnavailableView("沒有可進行的訓練", systemImage: "checkmark.seal", description: Text("請回到清單新增動作。"))
+                }
+            }
+            .navigationTitle("訓練中")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(role: .destructive) {
+                        endSession()
+                    } label: {
+                        Label("結束訓練", systemImage: "xmark.circle.fill")
+                    }
+                }
+            }
+            .sheet(isPresented: $showCompletedSheet, onDismiss: {
+                endSession()
+            }) {
+                VStack(spacing: 16) {
+                    Text("運動結束")
+                        .font(.largeTitle).bold()
+                    Text("做得好！所有動作都完成了。")
+                        .foregroundStyle(.secondary)
+                    Button {
+                        showCompletedSheet = false
+                    } label: {
+                        Label("回到主畫面", systemImage: "house.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.top, 8)
+                }
+                .padding()
+                .presentationDetents([.medium])
+            }
+            .onAppear {
+                var dict: [UUID: Int] = [:]
+                for item in cartSnapshot where item.exercise.bodyPart != .cardio {
+                    dict[item.id] = 0
+                }
+                completedSets = dict
+                advanceIfNeeded()
+            }
+        }
+    }
+
+    private func completeOneSet(for item: CartItem) {
+        let currentDone = completedSets[item.id] ?? 0
+        let target = max(0, item.sets)
+        let newValue = min(currentDone + 1, target)
+        completedSets[item.id] = newValue
+
+        if newValue >= target {
+            advanceToNext()
+        }
+    }
+
+    private func advanceToNext() {
+        var nextIndex = currentIndex + 1
+        while nextIndex < cartSnapshot.count {
+            let nextItem = cartSnapshot[nextIndex]
+            if nextItem.exercise.bodyPart == .cardio {
+                // 有氧：直接可以前進（按下完成此項目時）
+                currentIndex = nextIndex
+                return
+            } else {
+                let done = completedSets[nextItem.id] ?? 0
+                if done < nextItem.sets {
+                    currentIndex = nextIndex
+                    return
+                }
+            }
+            nextIndex += 1
+        }
+        if allDone {
+            showCompletedSheet = true
+        }
+    }
+
+    private func advanceIfNeeded() {
+        while let item = currentItem {
+            if item.exercise.bodyPart == .cardio {
+                // 有氧不以 sets 驅動，自動停留
+                break
+            } else {
+                let done = completedSets[item.id] ?? 0
+                if done >= item.sets {
+                    currentIndex += 1
+                } else {
+                    break
+                }
+            }
+        }
+        if allDone {
+            showCompletedSheet = true
+        }
+    }
+
+    private func nextItem(after item: CartItem) -> CartItem? {
+        guard let idx = cartSnapshot.firstIndex(where: { $0.id == item.id }) else { return nil }
+        var j = idx + 1
+        while j < cartSnapshot.count {
+            let candidate = cartSnapshot[j]
+            if candidate.exercise.bodyPart == .cardio {
+                return candidate
+            } else {
+                let done = completedSets[candidate.id] ?? 0
+                if done < candidate.sets {
+                    return candidate
+                }
+            }
+            j += 1
+        }
+        return nil
+    }
+
+    private func endSession() {
+        onFinish()
+        dismiss()
     }
 }
 
