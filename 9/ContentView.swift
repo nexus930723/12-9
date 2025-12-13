@@ -95,7 +95,7 @@ struct Exercise: Identifiable, Hashable, Codable {
 
     init(id: UUID = UUID(), name: String, bodyPart: BodyPart, imageName: String? = nil) {
         self.id = id
-        self.name = name
+               self.name = name
         self.bodyPart = bodyPart
         self.imageName = imageName
     }
@@ -107,7 +107,6 @@ struct CartItem: Identifiable, Hashable, Codable {
     var sets: Int
     var reps: Int
     var isCompleted: Bool
-    // 有氧專用：時間（分鐘），非有氧為 nil
     var durationMinutes: Int?
 
     init(
@@ -136,7 +135,6 @@ final class WorkoutManager: ObservableObject {
         withAnimation(.spring()) {
             if !cart.contains(where: { $0.exercise.id == exercise.id }) {
                 if exercise.bodyPart == .cardio {
-                    // 有氧：預設 20 分鐘，組/次設為 0
                     let newItem = CartItem(exercise: exercise, sets: 0, reps: 0, isCompleted: false, durationMinutes: 20)
                     cart.append(newItem)
                 } else {
@@ -428,35 +426,66 @@ struct CartView: View {
 
 struct CartItemRow: View {
     @Binding var item: CartItem
+    @State private var cardioInput: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Toggle(isOn: $item.isCompleted) {
-                    VStack(alignment: .leading) {
-                        Text(item.exercise.name)
-                            .font(.headline)
-                        Text(item.exercise.bodyPart.rawValue)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .toggleStyle(.switch)
+        VStack(alignment: .leading, spacing: 10) {
+            // 標題（無 Toggle）
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.exercise.name)
+                    .font(.headline)
+                Text(item.exercise.bodyPart.rawValue)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
 
             if item.exercise.bodyPart == .cardio {
-                // 有氧：只顯示時間（分鐘）
-                HStack {
-                    Stepper("時間：\(item.durationMinutes ?? 0) 分鐘",
-                            value: Binding(
-                                get: { item.durationMinutes ?? 0 },
-                                set: { item.durationMinutes = max(0, min(300, $0)) }
-                            ),
-                            in: 0...300)
+                // 有氧：更明顯的輸入框，單位「分鐘」在右側
+                HStack(spacing: 12) {
+                    Text("時間")
+                    Spacer()
+                    HStack(spacing: 8) {
+                        TextField("20", text: Binding(
+                            get: {
+                                if cardioInput.isEmpty {
+                                    let v = item.durationMinutes ?? 0
+                                    return v == 0 ? "" : String(v)
+                                } else {
+                                    return cardioInput
+                                }
+                            },
+                            set: { newValue in
+                                cardioInput = newValue.filter { $0.isNumber }
+                                if let v = Int(cardioInput) {
+                                    item.durationMinutes = max(1, min(300, v))
+                                }
+                            }
+                        ))
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(.title3) // 較明顯
+                        .frame(minWidth: 70, maxWidth: 100)
+
+                        Text("分鐘")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.accentColor.opacity(0.6), lineWidth: 1.5)
+                    )
+                }
+                .onAppear {
+                    if item.durationMinutes == nil {
+                        item.durationMinutes = 20
+                    }
+                    cardioInput = String(item.durationMinutes ?? 20)
                 }
                 .font(.subheadline)
             } else {
-                // 非有氧：顯示組數/次數
+                // 非有氧：組數/次數
                 HStack(spacing: 16) {
                     Stepper("組數：\(item.sets)", value: $item.sets, in: 0...20)
                     Stepper("次數：\(item.reps)", value: $item.reps, in: 0...100)
@@ -464,11 +493,10 @@ struct CartItemRow: View {
                 .font(.subheadline)
             }
         }
-        .padding(.vertical, 4)
-        .animation(nil, value: item.isCompleted)
+        .padding(.vertical, 6)
+        .animation(nil, value: item.durationMinutes)
         .animation(nil, value: item.sets)
         .animation(nil, value: item.reps)
-        .animation(nil, value: item.durationMinutes)
     }
 }
 
@@ -493,15 +521,12 @@ struct WorkoutSessionView: View {
     private var allDone: Bool {
         for item in cartSnapshot {
             if item.exercise.bodyPart == .cardio {
-                // 有氧：以 durationMinutes 是否 > 0 作為需完成的「一項」，此處先不自動判斷完成
-                // 你可以改成以倒數計時完成，或按一次「完成一項」即視為完成
                 continue
             } else {
                 let done = (completedSets[item.id] ?? 0) >= item.sets
                 if !done { return false }
             }
         }
-        // 若全部都是有氧，可視需求決定 allDone 規則；此處保持至少有一項且非有氧都完成才算
         return !cartSnapshot.isEmpty
     }
 
@@ -528,7 +553,6 @@ struct WorkoutSessionView: View {
                         }
 
                         if item.exercise.bodyPart == .cardio {
-                            // 有氧：顯示時間
                             VStack(spacing: 8) {
                                 Text("時間：\(item.durationMinutes ?? 0) 分鐘")
                                     .font(.title2)
@@ -537,7 +561,6 @@ struct WorkoutSessionView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Button {
-                                // 將有氧視為完成一項，直接前往下一個
                                 advanceToNext()
                             } label: {
                                 Label("完成此項目", systemImage: "checkmark.circle.fill")
@@ -545,7 +568,6 @@ struct WorkoutSessionView: View {
                             }
                             .buttonStyle(.borderedProminent)
                         } else {
-                            // 非有氧：以組數推進
                             let done = completedSets[item.id] ?? 0
                             VStack(spacing: 8) {
                                 ProgressView(value: Double(done), total: Double(max(1, item.sets)))
@@ -637,7 +659,6 @@ struct WorkoutSessionView: View {
         while nextIndex < cartSnapshot.count {
             let nextItem = cartSnapshot[nextIndex]
             if nextItem.exercise.bodyPart == .cardio {
-                // 有氧：直接可以前進（按下完成此項目時）
                 currentIndex = nextIndex
                 return
             } else {
@@ -657,7 +678,6 @@ struct WorkoutSessionView: View {
     private func advanceIfNeeded() {
         while let item = currentItem {
             if item.exercise.bodyPart == .cardio {
-                // 有氧不以 sets 驅動，自動停留
                 break
             } else {
                 let done = completedSets[item.id] ?? 0
