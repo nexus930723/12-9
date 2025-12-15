@@ -95,7 +95,7 @@ struct Exercise: Identifiable, Hashable, Codable {
 
     init(id: UUID = UUID(), name: String, bodyPart: BodyPart, imageName: String? = nil) {
         self.id = id
-               self.name = name
+        self.name = name
         self.bodyPart = bodyPart
         self.imageName = imageName
     }
@@ -734,6 +734,9 @@ struct NutritionView: View {
     @State private var activity: Double = 1.2
     @State private var showInvalidAlert: Bool = false
 
+    // Track save status
+    @State private var isSaved: Bool = false
+
     private var gender: Gender {
         Gender(rawValue: genderRaw) ?? .male
     }
@@ -760,84 +763,150 @@ struct NutritionView: View {
     }
 
     var body: some View {
-        Form {
-            Section("個人檔案") {
-                Picker("性別", selection: $genderRaw) {
-                    ForEach(Gender.allCases) { g in
-                        Text(g.rawValue).tag(g.rawValue)
+        ScrollView {
+            VStack(spacing: 16) {
+                // 個人檔案
+                GroupBox("個人檔案") {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text("性別")
+                            Spacer()
+                            Picker("", selection: $genderRaw) {
+                                ForEach(Gender.allCases) { g in
+                                    Text(g.rawValue).tag(g.rawValue)
+                                }
+                            }
+                            .labelsHidden()
+                            .onChange(of: genderRaw) { _ in isSaved = false }
+                        }
+
+                        HStack {
+                            Text("生日")
+                            Spacer()
+                            DatePicker("", selection: $birthday, displayedComponents: .date)
+                                .labelsHidden()
+                                .onChange(of: birthday) { _ in isSaved = false }
+                        }
+
+                        Divider().opacity(0.2)
+
+                        HStack {
+                            Text("年齡")
+                            Spacer()
+                            Text("\(age) 歲")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
+                // 身體數據
+                GroupBox("身體數據") {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text("身高（公分）")
+                            Spacer()
+                            TextField("例如 175", text: $heightCM)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 120)
+                                .onChange(of: heightCM) { _ in isSaved = false }
+                        }
+                        HStack {
+                            Text("體重（公斤）")
+                            Spacer()
+                            TextField("例如 70", text: $weightKG)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 120)
+                                .onChange(of: weightKG) { _ in isSaved = false }
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
+                // 活動強度
+                GroupBox("活動強度") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("目前：")
+                                .foregroundStyle(.secondary)
+                            Text(String(format: "%.1f", activity))
+                                .font(.headline)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                        }
+
+                        Slider(value: $activity, in: 1.2...2.0, step: 0.1)
+                            .tint(.accentColor)
+                            .onChange(of: activity) { _ in isSaved = false }
+
+                        HStack {
+                            Text("久坐 1.2")
+                            Spacer()
+                            Text("中等 1.6")
+                            Spacer()
+                            Text("高強度 2.0")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                 }
-                DatePicker("生日", selection: $birthday, displayedComponents: .date)
-                HStack {
-                    Text("年齡")
-                    Spacer()
-                    Text("\(age) 歲")
-                        .foregroundStyle(.secondary)
-                }
-            }
 
-            Section("身體數據") {
-                HStack {
-                    Text("身高（公分）")
-                    Spacer()
-                    TextField("例如 175", text: $heightCM)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 120)
-                }
-                HStack {
-                    Text("體重（公斤）")
-                    Spacer()
-                    TextField("例如 70", text: $weightKG)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 120)
-                }
-            }
+                // 結果
+                VStack(spacing: 12) {
+                    ResultCard(title: "基礎代謝率 (BMR)",
+                               valueText: bmr.map { String(format: "%.0f", $0) } ?? "--",
+                               unit: "大卡",
+                               color: .blue,
+                               isWarning: bmr == nil)
 
-            Section("活動程度") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Slider(value: $activity, in: 1.2...2.0, step: 0.1)
-                    HStack {
-                        Text("久坐 1.2")
-                        Spacer()
-                        Text(String(format: "目前：%.1f", activity))
-                        Spacer()
-                        Text("高強度 2.0")
+                    ResultCard(title: "每日總熱量消耗 (TDEE)",
+                               valueText: tdee.map { String(format: "%.0f", $0) } ?? "--",
+                               unit: "大卡",
+                               color: .orange,
+                               isWarning: tdee == nil)
+
+                    if bmr == nil || tdee == nil {
+                        Text("請確認身高、體重與生日皆為合理數值。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 }
-            }
 
-            Section("結果") {
-                HStack {
-                    Text("BMR")
-                    Spacer()
-                    Text(bmr.map { String(format: "%.0f 大卡", $0) } ?? "--")
-                        .foregroundStyle(bmr == nil ? .red : .primary)
-                }
-                HStack {
-                    Text("TDEE")
-                    Spacer()
-                    Text(tdee.map { String(format: "%.0f 大卡", $0) } ?? "--")
-                        .foregroundStyle(tdee == nil ? .red : .primary)
-                }
-                if bmr == nil || tdee == nil {
-                    Text("請確認身高、體重與生日皆為合理數值。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section {
+                // 底部儲存按鈕
                 Button {
                     validateInputs()
+                    if Double(heightCM) ?? -1 > 0,
+                       Double(weightKG) ?? -1 > 0,
+                       age > 0,
+                       activity >= 1.2, activity <= 2.0 {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            isSaved = true
+                        }
+                    } else {
+                        isSaved = false
+                    }
                 } label: {
-                    Label("重新計算", systemImage: "arrow.clockwise.circle.fill")
+                    HStack(spacing: 8) {
+                        Image(systemName: isSaved ? "checkmark.circle.fill" : "tray.and.arrow.down.fill")
+                        Text(isSaved ? "已儲存" : "儲存")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(isSaved ? Color.green.opacity(0.2) : Color.accentColor.opacity(0.2))
+                    .foregroundStyle(isSaved ? Color.green : Color.accentColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
+                .padding(.top, 4)
             }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
         }
+        .navigationBarTitleDisplayMode(.inline)
         .alert("輸入有誤", isPresented: $showInvalidAlert) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -850,6 +919,42 @@ struct NutritionView: View {
         let weightValid = Double(weightKG) ?? -1
         let valid = heightValid > 0 && weightValid > 0 && age > 0 && activity >= 1.2 && activity <= 2.0
         if !valid { showInvalidAlert = true }
+    }
+}
+
+// MARK: - 小元件：結果卡片
+
+private struct ResultCard: View {
+    let title: String
+    let valueText: String
+    let unit: String
+    let color: Color
+    var isWarning: Bool = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(valueText)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(isWarning ? Color.red : color)
+                    Text(unit)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Image(systemName: "flame.fill")
+                .foregroundStyle(isWarning ? Color.red.opacity(0.6) : color.opacity(0.8))
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
     }
 }
 
