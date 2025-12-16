@@ -374,6 +374,27 @@ struct CartView: View {
     @EnvironmentObject var manager: WorkoutManager
     @State private var presentSession: Bool = false
 
+    // 讀取體重與生日（生日以時間戳保存）
+    @AppStorage("fitcart_weight_kg") private var weightKGStorage: String = ""
+    @AppStorage("fitcart_birthday_ts") private var birthdayTS: Double = 0
+
+    private var weightKG: Double? {
+        Double(weightKGStorage)
+    }
+
+    private var age: Int? {
+        guard birthdayTS > 0 else { return nil }
+        let birthday = Date(timeIntervalSince1970: birthdayTS)
+        let comps = Calendar.current.dateComponents([.year], from: birthday, to: .now)
+        return comps.year
+    }
+
+    private let estimator = CalorieEstimator()
+
+    private var totalEstimatedCalories: Double {
+        estimator.totalCalories(for: manager.cart, weightKG: weightKG, age: age)
+    }
+
     var body: some View {
         List {
             if manager.cart.isEmpty {
@@ -393,11 +414,16 @@ struct CartView: View {
         .navigationTitle("我的清單")
         .toolbar { }
         .safeAreaInset(edge: .bottom) {
-            HStack {
+            HStack(spacing: 12) {
                 EditButton()
                     .buttonStyle(.bordered)
 
                 Spacer()
+
+                // 預估卡路里顯示
+                Text("本次運動預計消耗 \(Int(totalEstimatedCalories.rounded())) 大卡")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
                 Button {
                     presentSession = true
@@ -412,7 +438,10 @@ struct CartView: View {
             .background(.ultraThinMaterial)
         }
         .fullScreenCover(isPresented: $presentSession) {
-            WorkoutSessionView(cartSnapshot: manager.cart) {
+            WorkoutSessionView(
+                cartSnapshot: manager.cart,
+                totalEstimatedCalories: totalEstimatedCalories
+            ) {
                 presentSession = false
             }
             .environmentObject(manager)
@@ -507,6 +536,7 @@ struct WorkoutSessionView: View {
     @EnvironmentObject var manager: WorkoutManager
 
     let cartSnapshot: [CartItem]
+    let totalEstimatedCalories: Double
     var onFinish: () -> Void
 
     @State private var currentIndex: Int = 0
@@ -621,6 +651,10 @@ struct WorkoutSessionView: View {
                         .font(.largeTitle).bold()
                     Text("做得好！所有動作都完成了。")
                         .foregroundStyle(.secondary)
+                    // 顯示本次預估消耗
+                    Text("約消耗 \(Int(totalEstimatedCalories.rounded())) 大卡")
+                        .font(.headline)
+                        .padding(.top, 4)
                     Button {
                         showCompletedSheet = false
                     } label: {
@@ -729,6 +763,8 @@ struct NutritionView: View {
     @AppStorage("fitcart_height_cm") private var heightCM: String = ""
     @AppStorage("fitcart_weight_kg") private var weightKG: String = ""
     @AppStorage("fitcart_gender") private var genderRaw: String = Gender.male.rawValue
+    // 新增：生日時間戳，供其他畫面讀取年齡
+    @AppStorage("fitcart_birthday_ts") private var birthdayTS: Double = 0
 
     @State private var birthday: Date = Calendar.current.date(byAdding: .year, value: -20, to: .now) ?? .now
     @State private var activity: Double = 1.2
@@ -785,7 +821,18 @@ struct NutritionView: View {
                             Spacer()
                             DatePicker("", selection: $birthday, displayedComponents: .date)
                                 .labelsHidden()
-                                .onChange(of: birthday) { _ in isSaved = false }
+                                .onChange(of: birthday) { newDate in
+                                    isSaved = false
+                                    birthdayTS = newDate.timeIntervalSince1970
+                                }
+                        }
+                        .onAppear {
+                            // 若有保存生日，還原到畫面
+                            if birthdayTS > 0 {
+                                birthday = Date(timeIntervalSince1970: birthdayTS)
+                            } else {
+                                birthdayTS = birthday.timeIntervalSince1970
+                            }
                         }
 
                         Divider().opacity(0.2)
@@ -955,6 +1002,84 @@ private struct ResultCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemBackground))
         )
+    }
+}
+
+// MARK: - Calorie Estimator（內嵌）
+
+struct CalorieEstimator {
+
+    // 重訓：每次/rep 基準大卡（以 70kg、30 歲為基準）
+    private let perRepCaloriesBaseByExercise: [String: Double] = [
+        // 胸
+        "平板臥推": 0.60, "上斜臥推": 0.65, "下斜臥推": 0.65, "蝴蝶機夾胸": 0.45, "雙槓臂屈伸": 0.70, "伏地挺身": 0.35,
+        // 背
+        "高位下拉": 0.55, "坐姿划船": 0.55, "俯身划船": 0.60, "引體向上": 0.80,
+        // 腿
+        "深蹲": 0.90, "保加利亞分腿蹲": 0.85, "腿推舉": 0.75, "腿彎舉": 0.50, "站姿提踵": 0.35,
+        // 肩
+        "肩推": 0.55, "側平舉": 0.30, "前平舉": 0.30, "繩索面拉": 0.35, "反向飛鳥": 0.35,
+        // 手
+        "二頭彎舉": 0.30, "反握下壓": 0.35, "仰臥三頭肌伸展": 0.40,
+        // 腹（以次數型為主）
+        "捲腹": 0.20, "俄羅斯轉體": 0.25, "懸吊抬腿": 0.50
+        // 棒式屬時間型，放在每分鐘表
+    ]
+
+    // 有氧：每分鐘基準大卡（以 70kg、30 歲為基準）
+    private let perMinuteCaloriesBaseByExercise: [String: Double] = [
+        "跑步機": 9.0, "飛輪": 10.0, "划船機": 9.0,
+        // 也放時間型核心
+        "棒式": 4.0
+    ]
+
+    // 依部位的重訓預設（找不到動作名稱時的後備）
+    private let perRepByBodyPartDefaults: [BodyPart: Double] = [
+        .legs: 0.80, .chest: 0.60, .back: 0.60, .shoulders: 0.40, .arms: 0.35, .abs: 0.25
+    ]
+
+    private let defaultPerRep: Double = 0.50
+    private let defaultPerMinute: Double = 9.0
+
+    func calories(for item: CartItem, weightKG: Double?, age: Int?) -> Double {
+        let wScale = weightScale(weightKG)
+        let aScale = ageScale(age)
+
+        if item.exercise.bodyPart == .cardio || perMinuteCaloriesBaseByExercise[item.exercise.name] != nil || item.exercise.name == "棒式" {
+            // 有氧或時間型
+            let base = perMinuteCaloriesBaseByExercise[item.exercise.name] ?? defaultPerMinute
+            let minutes = Double(item.durationMinutes ?? 0)
+            if minutes <= 0 { return 0 }
+            return base * minutes * wScale * aScale
+        } else {
+            // 重訓（以次數計）
+            let base = perRepCaloriesBaseByExercise[item.exercise.name]
+                ?? perRepByBodyPartDefaults[item.exercise.bodyPart]
+                ?? defaultPerRep
+            let repsTotal = Double(item.sets * item.reps)
+            if repsTotal <= 0 { return 0 }
+            return base * repsTotal * wScale * aScale
+        }
+    }
+
+    func totalCalories(for cart: [CartItem], weightKG: Double?, age: Int?) -> Double {
+        cart.reduce(0) { partial, item in
+            partial + calories(for: item, weightKG: weightKG, age: age)
+        }
+    }
+
+    // 體重比例：以 70kg 為基準
+    private func weightScale(_ weightKG: Double?) -> Double {
+        guard let w = weightKG, w > 0 else { return 1.0 }
+        return max(0.1, w / 70.0)
+    }
+
+    // 年齡比例（方案 A，中心 30 歲，溫和，夾在 0.90...1.05）
+    private func ageScale(_ age: Int?) -> Double {
+        guard let age, age > 0 else { return 1.0 }
+        let delta = (30.0 - Double(age)) / 10.0
+        let raw = 1.0 + 0.01 * delta
+        return min(1.05, max(0.90, raw))
     }
 }
 
