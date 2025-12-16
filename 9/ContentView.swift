@@ -211,6 +211,15 @@ struct MainTabView: View {
             .tabItem {
                 Label("營養", systemImage: "heart.text.square")
             }
+
+            // 新增：AI 教練
+            NavigationStack {
+                AICoachView()
+                    .navigationTitle("AI 教練")
+            }
+            .tabItem {
+                Label("AI 教練", systemImage: "message.circle")
+            }
         }
     }
 }
@@ -492,7 +501,7 @@ struct CartItemRow: View {
                         ))
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
-                        .font(.title3) // 較明顯
+                        .font(.title3)
                         .frame(minWidth: 70, maxWidth: 100)
 
                         Text("分鐘")
@@ -651,7 +660,6 @@ struct WorkoutSessionView: View {
                         .font(.largeTitle).bold()
                     Text("做得好！所有動作都完成了。")
                         .foregroundStyle(.secondary)
-                    // 顯示本次預估消耗
                     Text("約消耗 \(Int(totalEstimatedCalories.rounded())) 大卡")
                         .font(.headline)
                         .padding(.top, 4)
@@ -763,14 +771,11 @@ struct NutritionView: View {
     @AppStorage("fitcart_height_cm") private var heightCM: String = ""
     @AppStorage("fitcart_weight_kg") private var weightKG: String = ""
     @AppStorage("fitcart_gender") private var genderRaw: String = Gender.male.rawValue
-    // 新增：生日時間戳，供其他畫面讀取年齡
     @AppStorage("fitcart_birthday_ts") private var birthdayTS: Double = 0
 
     @State private var birthday: Date = Calendar.current.date(byAdding: .year, value: -20, to: .now) ?? .now
     @State private var activity: Double = 1.2
     @State private var showInvalidAlert: Bool = false
-
-    // Track save status
     @State private var isSaved: Bool = false
 
     private var gender: Gender {
@@ -801,7 +806,6 @@ struct NutritionView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // 個人檔案
                 GroupBox("個人檔案") {
                     VStack(spacing: 12) {
                         HStack {
@@ -827,7 +831,6 @@ struct NutritionView: View {
                                 }
                         }
                         .onAppear {
-                            // 若有保存生日，還原到畫面
                             if birthdayTS > 0 {
                                 birthday = Date(timeIntervalSince1970: birthdayTS)
                             } else {
@@ -847,7 +850,6 @@ struct NutritionView: View {
                     .padding(.top, 4)
                 }
 
-                // 身體數據
                 GroupBox("身體數據") {
                     VStack(spacing: 12) {
                         HStack {
@@ -872,7 +874,6 @@ struct NutritionView: View {
                     .padding(.top, 4)
                 }
 
-                // 活動強度
                 GroupBox("活動強度") {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -901,7 +902,6 @@ struct NutritionView: View {
                     }
                 }
 
-                // 結果
                 VStack(spacing: 12) {
                     ResultCard(title: "基礎代謝率 (BMR)",
                                valueText: bmr.map { String(format: "%.0f", $0) } ?? "--",
@@ -923,7 +923,6 @@ struct NutritionView: View {
                     }
                 }
 
-                // 底部儲存按鈕
                 Button {
                     validateInputs()
                     if Double(heightCM) ?? -1 > 0,
@@ -1008,32 +1007,20 @@ private struct ResultCard: View {
 // MARK: - Calorie Estimator（內嵌）
 
 struct CalorieEstimator {
-
-    // 重訓：每次/rep 基準大卡（以 70kg、30 歲為基準）
     private let perRepCaloriesBaseByExercise: [String: Double] = [
-        // 胸
         "平板臥推": 0.60, "上斜臥推": 0.65, "下斜臥推": 0.65, "蝴蝶機夾胸": 0.45, "雙槓臂屈伸": 0.70, "伏地挺身": 0.35,
-        // 背
         "高位下拉": 0.55, "坐姿划船": 0.55, "俯身划船": 0.60, "引體向上": 0.80,
-        // 腿
         "深蹲": 0.90, "保加利亞分腿蹲": 0.85, "腿推舉": 0.75, "腿彎舉": 0.50, "站姿提踵": 0.35,
-        // 肩
         "肩推": 0.55, "側平舉": 0.30, "前平舉": 0.30, "繩索面拉": 0.35, "反向飛鳥": 0.35,
-        // 手
         "二頭彎舉": 0.30, "反握下壓": 0.35, "仰臥三頭肌伸展": 0.40,
-        // 腹（以次數型為主）
         "捲腹": 0.20, "俄羅斯轉體": 0.25, "懸吊抬腿": 0.50
-        // 棒式屬時間型，放在每分鐘表
     ]
 
-    // 有氧：每分鐘基準大卡（以 70kg、30 歲為基準）
     private let perMinuteCaloriesBaseByExercise: [String: Double] = [
         "跑步機": 9.0, "飛輪": 10.0, "划船機": 9.0,
-        // 也放時間型核心
         "棒式": 4.0
     ]
 
-    // 依部位的重訓預設（找不到動作名稱時的後備）
     private let perRepByBodyPartDefaults: [BodyPart: Double] = [
         .legs: 0.80, .chest: 0.60, .back: 0.60, .shoulders: 0.40, .arms: 0.35, .abs: 0.25
     ]
@@ -1046,13 +1033,11 @@ struct CalorieEstimator {
         let aScale = ageScale(age)
 
         if item.exercise.bodyPart == .cardio || perMinuteCaloriesBaseByExercise[item.exercise.name] != nil || item.exercise.name == "棒式" {
-            // 有氧或時間型
             let base = perMinuteCaloriesBaseByExercise[item.exercise.name] ?? defaultPerMinute
             let minutes = Double(item.durationMinutes ?? 0)
             if minutes <= 0 { return 0 }
             return base * minutes * wScale * aScale
         } else {
-            // 重訓（以次數計）
             let base = perRepCaloriesBaseByExercise[item.exercise.name]
                 ?? perRepByBodyPartDefaults[item.exercise.bodyPart]
                 ?? defaultPerRep
@@ -1068,18 +1053,228 @@ struct CalorieEstimator {
         }
     }
 
-    // 體重比例：以 70kg 為基準
     private func weightScale(_ weightKG: Double?) -> Double {
         guard let w = weightKG, w > 0 else { return 1.0 }
         return max(0.1, w / 70.0)
     }
 
-    // 年齡比例（方案 A，中心 30 歲，溫和，夾在 0.90...1.05）
     private func ageScale(_ age: Int?) -> Double {
         guard let age, age > 0 else { return 1.0 }
         let delta = (30.0 - Double(age)) / 10.0
         let raw = 1.0 + 0.01 * delta
         return min(1.05, max(0.90, raw))
+    }
+}
+
+// MARK: - AI Coach
+
+private final class AICoachViewModel: ObservableObject {
+    @Published var messages: [ChatMessage] = [
+        .init(role: .assistant, text: "嗨！我是你的 AI 教練。可以問我訓練菜單、增肌減脂、動作品質與安排建議～")
+    ]
+    @Published var input: String = ""
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+
+    private let client = GeminiClient(
+        apiKey: "AIzaSyANPB-WXsIH1WLJUpxxRIgRnq_nxTiRjRc",
+        model: "models/gemini-2.5-flash"
+    )
+
+    @MainActor
+    func send() async {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isLoading else { return }
+
+        input = ""
+        messages.append(.init(role: .user, text: trimmed))
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let reply = try await client.generateReply(from: messages)
+            messages.append(.init(role: .assistant, text: reply))
+        } catch {
+            errorMessage = "發生錯誤：\(error.localizedDescription)"
+            messages.append(.init(role: .assistant, text: "抱歉，我暫時無法回覆，請稍後再試。"))
+        }
+        isLoading = false
+    }
+
+    func clear() {
+        messages = [
+            .init(role: .assistant, text: "嗨！我是你的 AI 教練。可以問我訓練菜單、增肌減脂、動作品質與安排建議～")
+        ]
+        input = ""
+        errorMessage = nil
+    }
+}
+
+private struct ChatMessage: Identifiable, Hashable {
+    enum Role { case user, assistant }
+    let id = UUID()
+    let role: Role
+    let text: String
+}
+
+private struct AICoachView: View {
+    @StateObject private var vm = AICoachViewModel()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(vm.messages) { msg in
+                            MessageBubble(message: msg)
+                                .id(msg.id)
+                        }
+                        if vm.isLoading {
+                            HStack {
+                                ProgressView()
+                                Text("AI 正在輸入…")
+                                    .foregroundStyle(.secondary)
+                                    .font(.footnote)
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                    .onChange(of: vm.messages) { _ in
+                        if let last = vm.messages.last {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                proxy.scrollTo(last.id, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            HStack(spacing: 8) {
+                TextField("輸入你的健身問題…", text: $vm.input, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1...4)
+                Button {
+                    Task { await vm.send() }
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .font(.title3)
+                }
+                .disabled(vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading)
+            }
+            .padding(12)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    vm.clear()
+                } label: {
+                    Label("清空對話", systemImage: "trash")
+                }
+                .disabled(vm.isLoading)
+            }
+        }
+        .alert("錯誤", isPresented: Binding(
+            get: { vm.errorMessage != nil },
+            set: { _ in vm.errorMessage = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(vm.errorMessage ?? "")
+        }
+    }
+}
+
+private struct MessageBubble: View {
+    let message: ChatMessage
+
+    var body: some View {
+        HStack {
+            if message.role == .assistant {
+                bubble
+                Spacer(minLength: 40)
+            } else {
+                Spacer(minLength: 40)
+                bubble
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private var bubble: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(message.text)
+                .foregroundColor(message.role == .assistant ? Color.primary : Color.white)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(message.role == .assistant ? Color(.secondarySystemBackground) : Color.accentColor)
+        )
+    }
+}
+
+// MARK: - Gemini Client（最新版 Generative Language REST）
+
+private struct GeminiClient {
+    let apiKey: String
+    // Use full resource name, e.g. "models/gemini-2.5-flash"
+    let model: String
+
+    struct RequestBody: Encodable {
+        struct Part: Encodable { let text: String }
+        struct Content: Encodable {
+            let role: String
+            let parts: [Part]
+        }
+        let contents: [Content]
+    }
+
+    struct ResponseBody: Decodable {
+        struct Candidate: Decodable {
+            struct Content: Decodable {
+                struct Part: Decodable { let text: String? }
+                let parts: [Part]
+            }
+            let content: Content
+        }
+        let candidates: [Candidate]?
+    }
+
+    func generateReply(from messages: [ChatMessage]) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw NSError(domain: "GeminiError", code: -1, userInfo: [NSLocalizedDescriptionKey: "缺少 API Key"])
+        }
+
+        let urlString = "https://generativelanguage.googleapis.com/v1/\(model):generateContent?key=\(apiKey)"
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+
+        let contents: [RequestBody.Content] = messages.map { msg in
+            let role = (msg.role == .user) ? "user" : "model"
+            return .init(role: role, parts: [.init(text: msg.text)])
+        }
+
+        let body = RequestBody(contents: contents)
+        let data = try JSONEncoder().encode(body)
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = data
+
+        let (respData, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let msg = String(data: respData, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "GeminiError", code: (resp as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: msg])
+        }
+
+        let decoded = try JSONDecoder().decode(ResponseBody.self, from: respData)
+        let text = decoded.candidates?.first?.content.parts.compactMap { $0.text }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text?.isEmpty == false ? text! : "（沒有可用的回覆）"
     }
 }
 
