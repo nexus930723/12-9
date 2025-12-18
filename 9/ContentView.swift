@@ -164,6 +164,9 @@ struct ContentView: View {
     var body: some View {
         MainTabView()
             .environmentObject(manager)
+            .tint(FitColor.brand)
+            .background(FitColor.sceneBackground)
+            .ignoresSafeArea()
     }
 }
 
@@ -183,27 +186,32 @@ struct MainTabView: View {
                         AddExerciseSheet()
                             .environmentObject(manager)
                     }
+                    .background(FitColor.sceneBackground)
             }
             .tabItem { Label("瀏覽", systemImage: "square.grid.2x2") }
 
             NavigationStack {
                 CartView()
                     .navigationTitle("我的清單")
+                    .background(FitColor.sceneBackground)
             }
             .tabItem { Label("清單", systemImage: "cart") }
 
             NavigationStack {
                 NutritionView()
                     .navigationTitle("檔案與營養")
+                    .background(FitColor.sceneBackground)
             }
             .tabItem { Label("營養", systemImage: "heart.text.square") }
 
             NavigationStack {
                 AICoachView()
                     .navigationTitle("AI 教練")
+                    .background(FitColor.sceneBackground)
             }
             .tabItem { Label("AI 教練", systemImage: "message.circle") }
         }
+        .background(FitColor.sceneBackground)
     }
 }
 
@@ -216,7 +224,9 @@ private struct MainToolbar: ToolbarContent {
                 showAddSheet = true
             } label: {
                 Label("新增動作", systemImage: "plus.circle.fill")
+                    .labelStyle(.titleAndIcon)
             }
+            // 移除 .buttonStyle 以避免與 tint 疊色
         }
     }
 }
@@ -228,20 +238,26 @@ struct ExerciseBrowserView: View {
     @State private var selectedBodyPart: BodyPart? = nil
     @State private var showExercisesSheet: Bool = false
 
-    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    private let columns = [GridItem(.flexible(), spacing: FitSpacing.large),
+                           GridItem(.flexible(), spacing: FitSpacing.large)]
 
     var body: some View {
         ScrollView {
-            BodyPartGrid(columns: columns) { part in
-                Button {
-                    selectedBodyPart = part
-                    showExercisesSheet = true
-                } label: {
-                    BodyPartCard(part: part)
+            LazyVGrid(columns: columns, spacing: FitSpacing.large) {
+                ForEach(BodyPart.allCases) { part in
+                    Button {
+                        selectedBodyPart = part
+                        showExercisesSheet = true
+                    } label: {
+                        BodyPartCard(part: part)
+                    }
                 }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.top, FitSpacing.large)
+            .padding(.bottom, FitSpacing.xLarge)
         }
+        .background(FitColor.sceneBackground)
         .sheet(isPresented: $showExercisesSheet) {
             if let part = selectedBodyPart {
                 ExerciseListView(bodyPart: part)
@@ -251,43 +267,29 @@ struct ExerciseBrowserView: View {
     }
 }
 
-private struct BodyPartGrid<Content: View>: View {
-    let columns: [GridItem]
-    let content: (BodyPart) -> Content
-
-    init(columns: [GridItem], @ViewBuilder content: @escaping (BodyPart) -> Content) {
-        self.columns = columns
-        self.content = content
-    }
-
-    var body: some View {
-        LazyVGrid(columns: columns, spacing: 16) {
-            ForEach(BodyPart.allCases) { part in
-                content(part)
-            }
-        }
-    }
-}
-
 private struct BodyPartCard: View {
     let part: BodyPart
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: FitSpacing.small) {
             Image(part.assetName)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 100, height: 100)
+                .frame(height: 120)
+                .frame(maxWidth: .infinity)
                 .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            Text(part.rawValue)
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .clipShape(RoundedRectangle(cornerRadius: FitRadius.medium, style: .continuous))
+
+            HStack {
+                Text(part.rawValue)
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .fitCard()
     }
 }
 
@@ -298,13 +300,19 @@ struct ExerciseListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(bodyPart.sampleExercises) { exercise in
-                    ExerciseListRow(exercise: exercise, isInCart: manager.cart.contains { $0.exercise.id == exercise.id }) {
-                        manager.addToCart(exercise: exercise)
+            ZStack {
+                FitColor.sceneBackground.ignoresSafeArea()
+                List {
+                    ForEach(bodyPart.sampleExercises) { exercise in
+                        ExerciseListRow(exercise: exercise, isInCart: manager.cart.contains { $0.exercise.id == exercise.id }) {
+                            manager.addToCart(exercise: exercise)
+                        }
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .padding(.vertical, 2)
                     }
-                    .padding(.vertical, 4)
                 }
+                .listStyle(.plain)
             }
             .navigationTitle(bodyPart.rawValue)
             .toolbar {
@@ -322,16 +330,21 @@ private struct ExerciseListRow: View {
     let onAdd: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: FitSpacing.medium) {
             if let name = exercise.imageName {
                 Image(name)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 56, height: 56)
+                    .frame(width: 64, height: 64)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: FitRadius.medium, style: .continuous))
+            } else {
+                RoundedRectangle(cornerRadius: FitRadius.medium, style: .continuous)
+                    .fill(FitColor.subtleFill)
+                    .frame(width: 64, height: 64)
+                    .overlay(Image(systemName: "figure.strengthtraining.traditional").foregroundStyle(FitColor.brand))
             }
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name).font(.headline)
                 Text(exercise.bodyPart.rawValue)
                     .font(.subheadline)
@@ -341,15 +354,14 @@ private struct ExerciseListRow: View {
             Button(action: onAdd) {
                 if isInCart {
                     Label("已加入", systemImage: "checkmark.circle.fill")
-                        .labelStyle(.titleAndIcon)
                 } else {
                     Label("加入", systemImage: "plus.circle.fill")
-                        .labelStyle(.titleAndIcon)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.fitSecondary)
             .disabled(isInCart)
         }
+        .fitCard()
     }
 }
 
@@ -368,51 +380,43 @@ struct AddExerciseSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                BodyPartPickerSection(selectedBodyPart: $selectedBodyPart)
-                CustomExerciseNameSection(customName: $customName)
+            VStack(spacing: FitSpacing.large) {
+                SectionContainer("選擇部位", systemImage: "square.grid.2x2") {
+                    Picker("部位", selection: $selectedBodyPart) {
+                        ForEach(BodyPart.allCases) { part in
+                            Text(part.rawValue).tag(part)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                SectionContainer("動作名稱", systemImage: "text.cursor") {
+                    TextField("輸入自訂動作名稱", text: $customName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+
+                Spacer(minLength: 0)
             }
+            .padding()
+            .background(FitColor.sceneBackground)
             .navigationTitle("加入自訂動作")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("加入") {
+                    Button {
                         let exercise = Exercise(name: trimmedName, bodyPart: selectedBodyPart, imageName: nil)
                         manager.addToCart(exercise: exercise)
                         dismiss()
+                    } label: {
+                        Text("加入")
+                            .fontWeight(.semibold)
                     }
                     .disabled(trimmedName.isEmpty)
                 }
             }
-        }
-    }
-}
-
-private struct BodyPartPickerSection: View {
-    @Binding var selectedBodyPart: BodyPart
-
-    var body: some View {
-        Section("選擇部位") {
-            Picker("部位", selection: $selectedBodyPart) {
-                ForEach(BodyPart.allCases) { part in
-                    Text(part.rawValue).tag(part)
-                }
-            }
-            .pickerStyle(.menu)
-        }
-    }
-}
-
-private struct CustomExerciseNameSection: View {
-    @Binding var customName: String
-
-    var body: some View {
-        Section("動作名稱") {
-            TextField("輸入自訂動作名稱", text: $customName)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
         }
     }
 }
@@ -440,23 +444,37 @@ struct CartView: View {
     }
 
     var body: some View {
-        List {
+        ZStack {
+            FitColor.sceneBackground.ignoresSafeArea()
             if manager.cart.isEmpty {
-                Section {
+                VStack(spacing: FitSpacing.medium) {
                     ContentUnavailableView("清單是空的", systemImage: "cart", description: Text("到瀏覽頁面加入一些訓練吧。"))
+                    Button {
+                        // no-op, hint only
+                    } label: {
+                        Label("去瀏覽", systemImage: "square.grid.2x2")
+                    }
+                    .buttonStyle(.fitSecondary)
                 }
+                .padding()
             } else {
-                ForEach($manager.cart, id: \.id) { $item in
-                    CartItemRow(item: $item)
-                        .transaction { $0.animation = nil }
+                List {
+                    ForEach($manager.cart, id: \.id) { $item in
+                        CartItemRow(item: $item)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .transaction { $0.animation = nil }
+                    }
+                    .onDelete(perform: delete)
+                    .onMove(perform: manager.moveCartItem)
                 }
-                .onDelete(perform: delete)
-                .onMove(perform: manager.moveCartItem)
+                .listStyle(.plain)
+                .background(Color.clear)
             }
         }
         .animation(nil, value: manager.cart)
         .navigationTitle("我的清單")
-        .toolbar { }
+        .toolbar { EditButton() }
         .safeAreaInset(edge: .bottom) {
             CartBottomBar(
                 totalEstimatedCalories: totalEstimatedCalories,
@@ -484,17 +502,26 @@ private struct CartBottomBar: View {
     let onStart: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            EditButton().buttonStyle(.bordered)
+        HStack(spacing: FitSpacing.medium) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("本次運動預估")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill").foregroundStyle(FitColor.accent)
+                    Text("\(Int(totalEstimatedCalories.rounded())) 大卡")
+                        .font(.headline)
+                }
+            }
             Spacer()
-            Text("本次運動預計消耗 \(Int(totalEstimatedCalories.rounded())) 大卡")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
             Button(action: onStart) {
                 Label("開始訓練", systemImage: "play.circle.fill")
+                    .labelStyle(.titleAndIcon)
+                    .padding(.horizontal, 2)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.fitPrimary)
             .disabled(!canStart)
+            .opacity(canStart ? 1 : 0.5)
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
@@ -507,8 +534,21 @@ struct CartItemRow: View {
     @State private var cardioInput: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            CartItemHeader(title: item.exercise.name, subtitle: item.exercise.bodyPart.rawValue)
+        VStack(alignment: .leading, spacing: FitSpacing.small) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.exercise.name).font(.headline)
+                    Text(item.exercise.bodyPart.rawValue)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if item.exercise.bodyPart == .cardio {
+                    Image(systemName: "heart.fill").foregroundStyle(FitColor.accent)
+                } else {
+                    Image(systemName: "dumbbell.fill").foregroundStyle(FitColor.brand)
+                }
+            }
 
             if item.exercise.bodyPart == .cardio {
                 CardioEditor(cardioInput: $cardioInput, minutes: $item.durationMinutes)
@@ -520,24 +560,10 @@ struct CartItemRow: View {
                 StrengthEditors(sets: $item.sets, reps: $item.reps)
             }
         }
-        .padding(.vertical, 6)
+        .fitCard()
         .animation(nil, value: item.durationMinutes)
         .animation(nil, value: item.sets)
         .animation(nil, value: item.reps)
-    }
-}
-
-private struct CartItemHeader: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.headline)
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
     }
 }
 
@@ -546,7 +572,7 @@ private struct CardioEditor: View {
     @Binding var minutes: Int?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: FitSpacing.small) {
             Text("時間")
             Spacer()
             HStack(spacing: 8) {
@@ -578,8 +604,8 @@ private struct CardioEditor: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.6), lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: FitRadius.medium, style: .continuous)
+                    .strokeBorder(FitColor.brand.opacity(0.5), lineWidth: 1.5)
             )
         }
         .font(.subheadline)
@@ -591,7 +617,7 @@ private struct StrengthEditors: View {
     @Binding var reps: Int
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: FitSpacing.large) {
             Stepper("組數：\(sets)", value: $sets, in: 0...20)
             Stepper("次數：\(reps)", value: $reps, in: 0...100)
         }
@@ -631,9 +657,20 @@ struct WorkoutSessionView: View {
         NavigationStack {
             Group {
                 if let item = currentItem {
-                    VStack(spacing: 24) {
-                        CurrentExerciseHeader(name: item.exercise.name, part: item.exercise.bodyPart.rawValue)
-                        ExerciseMedia(imageName: item.exercise.imageName)
+                    VStack(spacing: FitSpacing.xLarge) {
+                        VStack(spacing: 6) {
+                            Text(item.exercise.name).font(.largeTitle.weight(.bold))
+                            Text(item.exercise.bodyPart.rawValue).font(.title3).foregroundStyle(.secondary)
+                        }
+
+                        if let name = item.exercise.imageName {
+                            Image(name)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: 360, maxHeight: 260)
+                                .clipShape(RoundedRectangle(cornerRadius: FitRadius.large, style: .continuous))
+                                .fitCard()
+                        }
 
                         if item.exercise.bodyPart == .cardio {
                             CardioInSession(durationMinutes: item.durationMinutes ?? 0, onComplete: advanceToNext)
@@ -644,11 +681,14 @@ struct WorkoutSessionView: View {
                             }
                         }
 
-                        Spacer()
+                        Spacer(minLength: 0)
 
                         if let next = nextItem(after: item) {
-                            NextExerciseHint(name: next.exercise.name)
-                                .padding(.bottom, 8)
+                            VStack(spacing: 4) {
+                                Text("下一個").font(.caption).foregroundStyle(.secondary)
+                                Text(next.exercise.name).font(.headline)
+                            }
+                            .fitPill(background: FitColor.subtleFill, foreground: .primary)
                         }
                     }
                     .padding()
@@ -656,6 +696,7 @@ struct WorkoutSessionView: View {
                     ContentUnavailableView("沒有可進行的訓練", systemImage: "checkmark.seal", description: Text("請回到清單新增動作。"))
                 }
             }
+            .background(FitColor.sceneBackground.ignoresSafeArea())
             .navigationTitle("訓練中")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -740,47 +781,22 @@ struct WorkoutSessionView: View {
     }
 }
 
-private struct CurrentExerciseHeader: View {
-    let name: String
-    let part: String
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text(name).font(.largeTitle).bold()
-            Text(part).font(.title3).foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct ExerciseMedia: View {
-    let imageName: String?
-
-    var body: some View {
-        if let name = imageName {
-            Image(name)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 320, maxHeight: 240)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.vertical, 8)
-        }
-    }
-}
-
 private struct CardioInSession: View {
     let durationMinutes: Int
     let onComplete: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: FitSpacing.small) {
             Text("時間：\(durationMinutes) 分鐘").font(.title2)
             Text("點擊下方按鈕可標記此有氧項目完成")
                 .font(.footnote).foregroundStyle(.secondary)
+            Button(action: onComplete) {
+                Label("完成此項目", systemImage: "checkmark.circle.fill").font(.title3)
+            }
+            .buttonStyle(.fitPrimary)
+            .padding(.top, FitSpacing.small)
         }
-        Button(action: onComplete) {
-            Label("完成此項目", systemImage: "checkmark.circle.fill").font(.title2)
-        }
-        .buttonStyle(.borderedProminent)
+        .fitCard()
     }
 }
 
@@ -790,26 +806,17 @@ private struct StrengthInSession: View {
     let onCompleteSet: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: FitSpacing.small) {
             ProgressView(value: Double(done), total: Double(max(1, totalSets)))
                 .tint(.green)
             Text("已完成 \(done) / \(totalSets) 組").font(.headline)
+            Button(action: onCompleteSet) {
+                Label("完成一組", systemImage: "checkmark.circle.fill").font(.title3)
+            }
+            .buttonStyle(.fitPrimary)
+            .padding(.top, FitSpacing.small)
         }
-        Button(action: onCompleteSet) {
-            Label("完成一組", systemImage: "checkmark.circle.fill").font(.title2)
-        }
-        .buttonStyle(.borderedProminent)
-    }
-}
-
-private struct NextExerciseHint: View {
-    let name: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text("下一個").font(.caption).foregroundStyle(.secondary)
-            Text(name).font(.headline)
-        }
+        .fitCard()
     }
 }
 
@@ -818,16 +825,19 @@ private struct CompletionSheet: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: FitSpacing.medium) {
             Text("運動結束").font(.largeTitle).bold()
             Text("做得好！所有動作都完成了。").foregroundStyle(.secondary)
-            Text("約消耗 \(Int(totalEstimatedCalories.rounded())) 大卡")
-                .font(.headline).padding(.top, 4)
-            Button(action: onClose) {
-                Label("回到主畫面", systemImage: "家")
+            HStack(spacing: 6) {
+                Image(systemName: "flame.fill").foregroundStyle(FitColor.accent)
+                Text("約消耗 \(Int(totalEstimatedCalories.rounded())) 大卡")
+                    .font(.headline)
             }
-            .buttonStyle(.borderedProminent)
-            .padding(.top, 8)
+            Button(action: onClose) {
+                Label("回到主畫面", systemImage: "house.fill")
+            }
+            .buttonStyle(.fitPrimary)
+            .padding(.top, FitSpacing.small)
         }
         .padding()
     }
@@ -871,258 +881,133 @@ struct NutritionView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                ProfileSection(genderRaw: $genderRaw, birthday: $birthday, birthdayTS: $birthdayTS) {
-                    isSaved = false
-                }
-                BodyMetricsSection(heightCM: $heightCM, weightKG: $weightKG) {
-                    isSaved = false
-                }
-                ActivitySection(activity: $activity) {
-                    isSaved = false
-                }
-                ResultsSection(bmr: bmr, tdee: tdee)
-
-                SaveButtonRow(isSaved: isSaved) {
-                    validateInputs()
-                    if Double(heightCM) ?? -1 > 0,
-                       Double(weightKG) ?? -1 > 0,
-                       age > 0,
-                       activity >= 1.2, activity <= 2.0 {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            isSaved = true
+            VStack(spacing: FitSpacing.large) {
+                SectionContainer("個人檔案", systemImage: "person.crop.circle") {
+                    HStack {
+                        Text("性別")
+                        Spacer()
+                        Picker("", selection: $genderRaw) {
+                            ForEach(Gender.allCases) { g in
+                                Text(g.rawValue).tag(g.rawValue)
+                            }
                         }
-                    } else {
-                        isSaved = false
-                    }
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .alert("輸入有誤", isPresented: $showInvalidAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("請輸入正確的身高與體重，並設定合理的生日。")
-        }
-    }
-
-    private func validateInputs() {
-        let heightValid = Double(heightCM) ?? -1
-        let weightValid = Double(weightKG) ?? -1
-        let valid = heightValid > 0 && weightValid > 0 && age > 0 && activity >= 1.2 && activity <= 2.0
-        if !valid { showInvalidAlert = true }
-    }
-}
-
-private struct ProfileSection: View {
-    @Binding var genderRaw: String
-    @Binding var birthday: Date
-    @Binding var birthdayTS: Double
-    var onChange: () -> Void
-
-    private var age: Int {
-        let now = Date()
-        let comps = Calendar.current.dateComponents([.year], from: birthday, to: now)
-        return max(0, comps.year ?? 0)
-    }
-
-    var body: some View {
-        GroupBox("個人檔案") {
-            VStack(spacing: 12) {
-                HStack {
-                    Text("性別")
-                    Spacer()
-                    Picker("", selection: $genderRaw) {
-                        ForEach(Gender.allCases) { g in
-                            Text(g.rawValue).tag(g.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .onChange(of: genderRaw) { _ in onChange() }
-                }
-
-                HStack {
-                    Text("生日")
-                    Spacer()
-                    DatePicker("", selection: $birthday, displayedComponents: .date)
                         .labelsHidden()
-                        .onChange(of: birthday) { newDate in
-                            onChange()
-                            birthdayTS = newDate.timeIntervalSince1970
+                        .onChange(of: genderRaw) { _ in isSaved = false }
+                    }
+
+                    HStack {
+                        Text("生日")
+                        Spacer()
+                        DatePicker("", selection: $birthday, displayedComponents: .date)
+                            .labelsHidden()
+                            .onChange(of: birthday) { newDate in
+                                isSaved = false
+                                birthdayTS = newDate.timeIntervalSince1970
+                            }
+                    }
+                    .onAppear {
+                        if birthdayTS > 0 {
+                            birthday = Date(timeIntervalSince1970: birthdayTS)
+                        } else {
+                            birthdayTS = birthday.timeIntervalSince1970
                         }
-                }
-                .onAppear {
-                    if birthdayTS > 0 {
-                        birthday = Date(timeIntervalSince1970: birthdayTS)
-                    } else {
-                        birthdayTS = birthday.timeIntervalSince1970
+                    }
+
+                    Divider().opacity(0.2)
+
+                    HStack {
+                        Text("年齡")
+                        Spacer()
+                        Text("\(age) 歲")
+                            .foregroundStyle(.secondary)
                     }
                 }
 
-                Divider().opacity(0.2)
-
-                HStack {
-                    Text("年齡")
-                    Spacer()
-                    Text("\(age) 歲")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.top, 4)
-        }
-    }
-}
-
-private struct BodyMetricsSection: View {
-    @Binding var heightCM: String
-    @Binding var weightKG: String
-    var onChange: () -> Void
-
-    var body: some View {
-        GroupBox("身體數據") {
-            VStack(spacing: 12) {
-                HStack {
-                    Text("身高（公分）")
-                    Spacer()
-                    TextField("例如 175", text: $heightCM)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 120)
-                        .onChange(of: heightCM) { _ in onChange() }
-                }
-                HStack {
-                    Text("體重（公斤）")
-                    Spacer()
-                    TextField("例如 70", text: $weightKG)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 120)
-                        .onChange(of: weightKG) { _ in onChange() }
-                }
-            }
-            .padding(.top, 4)
-        }
-    }
-}
-
-private struct ActivitySection: View {
-    @Binding var activity: Double
-    var onChange: () -> Void
-
-    var body: some View {
-        GroupBox("活動強度") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("目前：").foregroundStyle(.secondary)
-                    Text(String(format: "%.1f", activity))
-                        .font(.headline)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                SectionContainer("身體數據", systemImage: "ruler") {
+                    HStack {
+                        Text("身高（公分）")
+                        Spacer()
+                        TextField("例如 175", text: $heightCM)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 120)
+                            .onChange(of: heightCM) { _ in isSaved = false }
+                    }
+                    HStack {
+                        Text("體重（公斤）")
+                        Spacer()
+                        TextField("例如 70", text: $weightKG)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 120)
+                            .onChange(of: weightKG) { _ in isSaved = false }
+                    }
                 }
 
-                Slider(value: $activity, in: 1.2...2.0, step: 0.1)
-                    .tint(.accentColor)
-                    .onChange(of: activity) { _ in onChange() }
+                SectionContainer("活動強度", systemImage: "figure.walk") {
+                    HStack {
+                        Text("目前：").foregroundStyle(.secondary)
+                        Text(String(format: "%.1f", activity))
+                            .font(.headline)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(FitColor.subtleFill))
+                    }
 
-                HStack {
-                    Text("久坐 1.2")
-                    Spacer()
-                    Text("中等 1.6")
-                    Spacer()
-                    Text("高強度 2.0")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
+                    Slider(value: $activity, in: 1.2...2.0, step: 0.1)
+                        .tint(FitColor.brand)
+                        .onChange(of: activity) { _ in isSaved = false }
 
-private struct ResultsSection: View {
-    let bmr: Double?
-    let tdee: Double?
-
-    var body: some View {
-        VStack(spacing: 12) {
-            ResultCard(title: "基礎代謝率 (BMR)",
-                       valueText: bmr.map { String(format: "%.0f", $0) } ?? "--",
-                       unit: "大卡",
-                       color: .blue,
-                       isWarning: bmr == nil)
-
-            ResultCard(title: "每日總熱量消耗 (TDEE)",
-                       valueText: tdee.map { String(format: "%.0f", $0) } ?? "--",
-                       unit: "大卡",
-                       color: .orange,
-                       isWarning: tdee == nil)
-
-            if bmr == nil || tdee == nil {
-                Text("請確認身高、體重與生日皆為合理數值。")
-                    .font(.footnote)
+                    HStack {
+                        Text("久坐 1.2")
+                        Spacer()
+                        Text("中等 1.6")
+                        Spacer()
+                        Text("高強度 2.0")
+                    }
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.top, 4)
-            }
-        }
-    }
-}
-
-private struct SaveButtonRow: View {
-    let isSaved: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 8) {
-                Image(systemName: isSaved ? "checkmark.circle.fill" : "tray.and.arrow.down.fill")
-                Text(isSaved ? "已儲存" : "儲存")
-                    .fontWeight(.semibold)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(isSaved ? Color.green.opacity(0.2) : Color.accentColor.opacity(0.2))
-            .foregroundStyle(isSaved ? Color.green : Color.accentColor)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .padding(.top, 4)
-    }
-}
-
-// MARK: - 小元件：結果卡片
-
-private struct ResultCard: View {
-    let title: String
-    let valueText: String
-    let unit: String
-    let color: Color
-    var isWarning: Bool = false
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(valueText)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(isWarning ? Color.red : color)
-                    Text(unit)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                 }
+
+                VStack(spacing: FitSpacing.small) {
+                    MetricValueView(title: "基礎代謝率 (BMR)",
+                                    value: bmr.map { String(format: "%.0f", $0) } ?? "--",
+                                    unit: "大卡",
+                                    color: .blue)
+
+                    MetricValueView(title: "每日總熱量消耗 (TDEE)",
+                                    value: tdee.map { String(format: "%.0f", $0) } ?? "--",
+                                    unit: "大卡",
+                                    color: .orange)
+
+                    if bmr == nil || tdee == nil {
+                        Text("請確認身高、體重與生日皆為合理數值。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+                    }
+                }
+
+                Button {
+                    let heightValid = Double(heightCM) ?? -1
+                    let weightValid = Double(weightKG) ?? -1
+                    let valid = heightValid > 0 && weightValid > 0 && age > 0 && activity >= 1.2 && activity <= 2.0
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                        isSaved = valid
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: isSaved ? "checkmark.circle.fill" : "tray.and.arrow.down.fill")
+                        Text(isSaved ? "已儲存" : "儲存").fontWeight(.semibold)
+                    }
+                }
+                .buttonStyle(.fitPrimary)
+                .opacity((bmr != nil && tdee != nil) ? 1 : 0.9)
             }
-            Spacer()
-            Image(systemName: "flame.fill")
-                .foregroundStyle(isWarning ? Color.red.opacity(0.6) : color.opacity(0.8))
+            .padding()
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .background(FitColor.sceneBackground.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -1257,6 +1142,7 @@ private struct AICoachView: View {
                     Label("清空對話", systemImage: "trash")
                 }
                 .disabled(vm.isLoading)
+                // 移除 .buttonStyle 以避免與 tint 疊色
             }
         }
         .alert("錯誤", isPresented: Binding(
@@ -1267,6 +1153,7 @@ private struct AICoachView: View {
         } message: {
             Text(vm.errorMessage ?? "")
         }
+        .background(FitColor.sceneBackground.ignoresSafeArea())
     }
 }
 
@@ -1277,7 +1164,7 @@ private struct ChatList: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: FitSpacing.medium) {
                     ForEach(messages) { msg in
                         MessageBubble(message: msg)
                             .id(msg.id)
@@ -1287,7 +1174,7 @@ private struct ChatList: View {
                             .padding(.horizontal)
                     }
                 }
-                .padding(.vertical, 12)
+                .padding(.vertical, FitSpacing.medium)
                 .onChange(of: messages) { _ in
                     if let last = messages.last {
                         withAnimation(.easeOut(duration: 0.25)) {
@@ -1296,13 +1183,14 @@ private struct ChatList: View {
                     }
                 }
             }
+            .background(FitColor.sceneBackground)
         }
     }
 }
 
 private struct LoadingRow: View {
     var body: some View {
-        HStack {
+        HStack(spacing: FitSpacing.small) {
             ProgressView()
             Text("AI 正在輸入…")
                 .foregroundStyle(.secondary)
@@ -1318,16 +1206,18 @@ private struct ChatInputBar: View {
 
     var body: some View {
         Divider()
-        HStack(spacing: 8) {
+        HStack(spacing: FitSpacing.small) {
             TextField("輸入你的健身問題…", text: $text, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
             Button(action: onSend) {
                 Image(systemName: "paperplane.fill").font(.title3)
             }
+            .buttonStyle(.fitPrimary)
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
         }
         .padding(12)
+        .background(FitColor.sceneBackground)
     }
 }
 
@@ -1337,26 +1227,27 @@ private struct MessageBubble: View {
     var body: some View {
         HStack {
             if message.role == .assistant {
-                bubble
+                bubble(fill: FitColor.cardBackground, textColor: .primary)
                 Spacer(minLength: 40)
             } else {
                 Spacer(minLength: 40)
-                bubble
+                bubble(fill: FitColor.brand, textColor: .white)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, FitSpacing.small)
     }
 
-    private var bubble: some View {
+    private func bubble(fill: Color, textColor: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(message.text)
-                .foregroundColor(message.role == .assistant ? Color.primary : Color.white)
+                .foregroundStyle(textColor)
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(message.role == .assistant ? Color(.secondarySystemBackground) : Color.accentColor)
+            RoundedRectangle(cornerRadius: FitRadius.large, style: .continuous)
+                .fill(fill)
         )
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
     }
 }
 
@@ -1426,4 +1317,5 @@ private struct GeminiClient {
 #Preview {
     ContentView()
         .environmentObject(WorkoutManager())
+        .tint(FitColor.brand)
 }

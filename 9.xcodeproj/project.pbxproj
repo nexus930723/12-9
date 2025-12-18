@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		97F536372EF459760071707D /* FitTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F536362EF459760071707D /* FitTheme.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		9765AB792EE8658800C2E0F6 /* 9.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = 9.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		97F536362EF459760071707D /* FitTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitTheme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +39,7 @@
 			children = (
 				9765AB7B2EE8658800C2E0F6 /* 9 */,
 				9765AB7A2EE8658800C2E0F6 /* Products */,
+				97F536362EF459760071707D /* FitTheme.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -119,6 +125,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				97F536372EF459760071707D /* FitTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
