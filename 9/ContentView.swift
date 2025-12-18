@@ -353,34 +353,37 @@ private struct ExerciseListRow: View {
     }
 }
 
-// MARK: - Add Exercise Sheet (quick picker)
+// MARK: - Add Exercise Sheet (custom input)
 
 struct AddExerciseSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var manager: WorkoutManager
 
     @State private var selectedBodyPart: BodyPart = .chest
-    @State private var selectedExercise: Exercise?
+    @State private var customName: String = ""
+
+    private var trimmedName: String {
+        customName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 BodyPartPickerSection(selectedBodyPart: $selectedBodyPart)
-                ExercisePickerSection(selectedBodyPart: selectedBodyPart, selectedExercise: $selectedExercise)
+                CustomExerciseNameSection(customName: $customName)
             }
-            .navigationTitle("新增動作")
+            .navigationTitle("加入自訂動作")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("加入") {
-                        if let ex = selectedExercise {
-                            manager.addToCart(exercise: ex)
-                            dismiss()
-                        }
+                        let exercise = Exercise(name: trimmedName, bodyPart: selectedBodyPart, imageName: nil)
+                        manager.addToCart(exercise: exercise)
+                        dismiss()
                     }
-                    .disabled(selectedExercise == nil)
+                    .disabled(trimmedName.isEmpty)
                 }
             }
         }
@@ -402,19 +405,14 @@ private struct BodyPartPickerSection: View {
     }
 }
 
-private struct ExercisePickerSection: View {
-    let selectedBodyPart: BodyPart
-    @Binding var selectedExercise: Exercise?
+private struct CustomExerciseNameSection: View {
+    @Binding var customName: String
 
     var body: some View {
-        Section("動作") {
-            Picker("動作", selection: $selectedExercise) {
-                Text("請選擇").tag(Exercise?.none)
-                ForEach(selectedBodyPart.sampleExercises) { exercise in
-                    Text(exercise.name).tag(Exercise?.some(exercise))
-                }
-            }
-            .pickerStyle(.navigationLink)
+        Section("動作名稱") {
+            TextField("輸入自訂動作名稱", text: $customName)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
         }
     }
 }
@@ -826,7 +824,7 @@ private struct CompletionSheet: View {
             Text("約消耗 \(Int(totalEstimatedCalories.rounded())) 大卡")
                 .font(.headline).padding(.top, 4)
             Button(action: onClose) {
-                Label("回到主畫面", systemImage: "house.fill")
+                Label("回到主畫面", systemImage: "家")
             }
             .buttonStyle(.borderedProminent)
             .padding(.top, 8)
